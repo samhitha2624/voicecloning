@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice Clone Studio</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #ffffff; --ink: #1d1c1a; --muted: #6b6862;
+    --line: #e3e0da; --accent: #4f46e5; --accent-ink: #fff; --danger: #c0392b;
+    --ok: #1e8e5a; --rec: #e11d48;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #151514; --card: #1f1f1d; --ink: #edebe6; --muted: #a29f98;
+      --line: #34332f; --accent: #818cf8; --accent-ink: #0f0f1a; --danger: #f87171; --ok: #4ade80; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 920px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 0 0 12px; }
+  .sub { color: var(--muted); margin: 0 0 28px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px; margin-bottom: 20px; }
+  label { display: block; font-weight: 600; font-size: 13px; margin: 14px 0 6px; }
+  input[type=text], textarea, select { width: 100%; padding: 10px 12px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; }
+  textarea { min-height: 110px; resize: vertical; }
+  button { font: inherit; font-weight: 600; border-radius: 8px; padding: 9px 16px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button.danger { color: var(--danger); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .drop { border: 2px dashed var(--line); border-radius: 10px; padding: 22px; text-align: center;
+    color: var(--muted); cursor: pointer; }
+  .drop.over { border-color: var(--accent); color: var(--ink); }
+  .list { list-style: none; padding: 0; margin: 12px 0 0; }
+  .list li { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+  .list li audio { height: 32px; flex: 1; min-width: 0; }
+  .list li .name { flex: 0 1 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  .meter { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+  .meter > div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+  .hint { color: var(--muted); font-size: 13px; }
+  .rec-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--rec); display: inline-block;
+    animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  .consent { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; font-size: 14px; }
+  .consent input { margin-top: 4px; }
+  .voices { display: grid; gap: 10px; }
+  .voice { display: flex; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--line);
+    border-radius: 10px; flex-wrap: wrap; }
+  .voice.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .voice .grow { flex: 1; min-width: 140px; }
+  .msg { margin-top: 10px; font-size: 14px; min-height: 1.2em; }
+  .msg.err { color: var(--danger); } .msg.ok { color: var(--ok); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 600px) { .grid2 { grid-template-columns: 1fr; } }
+  .script { background: var(--bg); border-radius: 8px; padding: 10px 12px; font-size: 14px; margin-top: 8px; }
+  .results audio { width: 100%; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Voice Clone Studio</h1>
+  <p class="sub">Add as many clean recordings of a voice as you can. Every sample is combined into one voice profile, then you can make that voice say anything.</p>
+
+  <section class="card">
+    <h2>1 · Build a voice</h2>
+    <label for="vname">Voice name</label>
+    <input id="vname" type="text" placeholder="e.g. My voice" maxlength="60">
+
+    <label>Samples</label>
+    <div id="drop" class="drop">Drop audio files here or click to choose<br>
+      <span class="hint">WAV, MP3, M4A, OGG, WEBM — any number of files</span></div>
+    <input id="file" type="file" accept="audio/*" multiple hidden>
+
+    <div class="row" style="margin-top:12px">
+      <button id="recBtn">● Record from mic</button>
+      <span id="recState" class="hint"></span>
+    </div>
+    <div class="script hint" id="scriptBox"></div>
+
+    <ul id="pending" class="list"></ul>
+    <div class="hint" id="totalHint">No samples yet. Aim for 1–5 minutes total; 6+ seconds works, more is better.</div>
+    <div class="meter"><div id="meterBar"></div></div>
+
+    <label class="consent"><input type="checkbox" id="consent">
+      <span>This is my own voice, or I have the speaker's explicit permission to clone it. I won't use it to impersonate or deceive anyone.</span></label>
+
+    <div class="row" style="margin-top:14px">
+      <button class="primary" id="createBtn">Create voice</button>
+      <button id="addBtn" disabled>Add samples to selected voice</button>
+    </div>
+    <div class="msg" id="buildMsg"></div>
+  </section>
+
+  <section class="card">
+    <h2>2 · Your voices</h2>
+    <div id="voices" class="voices"><span class="hint">No voices yet.</span></div>
+  </section>
+
+  <section class="card">
+    <h2>3 · Speak</h2>
+    <label for="text">Text</label>
+    <textarea id="text" maxlength="2000" placeholder="Type what the cloned voice should say…"></textarea>
+    <div class="grid2">
+      <div><label for="lang">Language</label><select id="lang"></select></div>
+      <div><label for="temp">Expressiveness <span id="tempVal" class="hint">0.70</span></label>
+        <input id="temp" type="range" min="0.1" max="1.0" step="0.05" value="0.7" style="width:100%"></div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="primary" id="speakBtn" disabled>Generate speech</button>
+      <span class="hint" id="speakHint">Select a voice first.</span>
+    </div>
+    <div class="msg" id="speakMsg"></div>
+    <div class="results" id="results"></div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const TARGET_SR = 22050;
+const SCRIPTS = [
+  "The quick brown fox jumps over the lazy dog, then naps in the afternoon sun.",
+  "I'd like a cup of coffee with a little milk, please. Actually, make it two.",
+  "Wow, that's incredible! I honestly didn't expect it to turn out so well.",
+  "Could you tell me how to get to the train station from here?",
+  "Every morning I go for a short walk, listen to some music, and plan my day.",
+  "Numbers like three hundred and forty-two can be tricky to say quickly.",
+  "Hmm, I'm not completely sure about that. Let me think it over for a moment.",
+];
+let scriptIdx = 0;
+let pending = [];          // {name, blob, seconds, url}
+let voices = [];
+let selected = null;
+
+$("scriptBox").textContent = "Read aloud while recording: “" + SCRIPTS[0] + "”";
+
+// ---- Audio helpers: decode anything the browser can play, convert to mono 16-bit WAV ----
+async function toWav(arrayBuf) {
+  const ctx = new AudioContext();
+  const decoded = await ctx.decodeAudioData(arrayBuf);
+  ctx.close();
+  const len = Math.ceil(decoded.duration * TARGET_SR);
+  const off = new OfflineAudioContext(1, len, TARGET_SR);
+  const src = off.createBufferSource();
+  src.buffer = decoded; src.connect(off.destination); src.start();
+  const rendered = await off.startRendering();
+  return { blob: encodeWav(rendered.getChannelData(0), TARGET_SR), seconds: decoded.duration };
+}
+function encodeWav(samples, sr) {
+  const buf = new ArrayBuffer(44 + samples.length * 2), v = new DataView(buf);
+  const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, "RIFF"); v.setUint32(4, 36 + samples.length * 2, true); w(8, "WAVE"); w(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, samples.length * 2, true);
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+  return new Blob([buf], { type: "audio/wav" });
+}
+
+async function addFiles(fileList) {
+  for (const f of fileList) {
+    try {
+      const { blob, seconds } = await toWav(await f.arrayBuffer());
+      pending.push({ name: f.name, blob, seconds, url: URL.createObjectURL(blob) });
+    } catch { msg("buildMsg", `Couldn't read ${f.name} — unsupported audio format.`, true); }
+  }
+  renderPending();
+}
+
+function renderPending() {
+  const ul = $("pending"); ul.innerHTML = "";
+  pending.forEach((p, i) => {
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="name"></span><audio controls></audio><span class="hint">${p.seconds.toFixed(1)}s</span><button class="danger">✕</button>`;
+    li.querySelector(".name").textContent = p.name;
+    li.querySelector("audio").src = p.url;
+    li.querySelector("button").onclick = () => { URL.revokeObjectURL(p.url); pending.splice(i, 1); renderPending(); };
+    ul.appendChild(li);
+  });
+  const total = pending.reduce((a, p) => a + p.seconds, 0);
+  $("meterBar").style.width = Math.min(100, total / 180 * 100) + "%";
+  $("totalHint").textContent = pending.length
+    ? `${pending.length} sample(s), ${total.toFixed(0)}s total — ${total < 6 ? "need at least 6s" : total < 60 ? "good start, more helps" : total < 180 ? "great" : "excellent"}.`
+    : "No samples yet. Aim for 1–5 minutes total; 6+ seconds works, more is better.";
+}
+
+// ---- Drag & drop / file picker ----
+const drop = $("drop");
+drop.onclick = () => $("file").click();
+$("file").onchange = e => { addFiles(e.target.files); e.target.value = ""; };
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); addFiles(e.dataTransfer.files); };
+
+// ---- Mic recording ----
+let recorder = null, chunks = [], recStart = 0, recTimer = null;
+$("recBtn").onclick = async () => {
+  if (recorder) { recorder.stop(); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true } });
+    recorder = new MediaRecorder(stream); chunks = [];
+    recorder.ondataavailable = e => chunks.push(e.data);
+    recorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      clearInterval(recTimer); recorder = null;
+      $("recBtn").textContent = "● Record from mic"; $("recState").textContent = "";
+      const blob = new Blob(chunks);
+      try {
+        const r = await toWav(await blob.arrayBuffer());
+        pending.push({ name: `Recording ${pending.length + 1}`, ...r, url: URL.createObjectURL(r.blob) });
+        renderPending();
+      } catch { msg("buildMsg", "Recording failed to decode.", true); }
+      scriptIdx = (scriptIdx + 1) % SCRIPTS.length;
+      $("scriptBox").textContent = "Read aloud while recording: “" + SCRIPTS[scriptIdx] + "”";
+    };
+    recorder.start(); recStart = Date.now();
+    $("recBtn").textContent = "■ Stop";
+    recTimer = setInterval(() => {
+      $("recState").innerHTML = `<span class="rec-dot"></span> ${((Date.now() - recStart) / 1000).toFixed(0)}s`;
+    }, 250);
+  } catch { msg("buildMsg", "Microphone access was denied.", true); }
+};
+
+// ---- API ----
+function msg(id, text, err = false) { const m = $(id); m.textContent = text; m.className = "msg " + (err ? "err" : "ok"); }
+let CLIENT_ID;
+try { CLIENT_ID = localStorage.getItem("vcs-client"); } catch {}
+if (!CLIENT_ID) {
+  CLIENT_ID = crypto.randomUUID();
+  try { localStorage.setItem("vcs-client", CLIENT_ID); } catch {}
+}
+async function api(url, opts = {}) {
+  opts.headers = { ...(opts.headers || {}), "X-Client-Id": CLIENT_ID };
+  const r = await fetch(url, opts);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `Request failed (${r.status})`);
+  return j;
+}
+function sampleForm() {
+  const fd = new FormData();
+  pending.forEach((p, i) => fd.append("samples", p.blob, `s${i}.wav`));
+  return fd;
+}
+
+$("createBtn").onclick = async () => {
+  const name = $("vname").value.trim();
+  if (!name) return msg("buildMsg", "Give the voice a name.", true);
+  if (!pending.length) return msg("buildMsg", "Add at least one sample.", true);
+  if (!$("consent").checked) return msg("buildMsg", "Please confirm you have consent to clone this voice.", true);
+  const fd = sampleForm(); fd.append("name", name); fd.append("consent", "yes");
+  $("createBtn").disabled = true; msg("buildMsg", "Uploading…");
+  try {
+    const v = await api("/api/voices", { method: "POST", body: fd });
+    pending = []; renderPending(); $("vname").value = "";
+    selected = v.id; await loadVoices();
+    msg("buildMsg", `Voice “${v.name}” created with ${v.samples} sample(s).`);
+  } catch (e) { msg("buildMsg", e.message, true); }
+  $("createBtn").disabled = false;
+};
+
+$("addBtn").onclick = async () => {
+  if (!selected || !pending.length) return msg("buildMsg", "Select a voice and add samples first.", true);
+  $("addBtn").disabled = true; msg("buildMsg", "Uploading…");
+  try {
+    const v = await api(`/api/voices/${selected}/samples`, { method: "POST", body: sampleForm() });
+    pending = []; renderPending(); await loadVoices();
+    msg("buildMsg", `“${v.name}” now has ${v.samples} samples (${v.seconds}s).`);
+  } catch (e) { msg("buildMsg", e.message, true); }
+  updateButtons();
+};
+
+async function loadVoices() {
+  const j = await api("/api/voices");
+  voices = j.voices;
+  if ($("lang").options.length === 0)
+    j.languages.forEach(l => $("lang").add(new Option(l, l)));
+  if (selected && !voices.find(v => v.id === selected)) selected = null;
+  const box = $("voices"); box.innerHTML = "";
+  if (!voices.length) box.innerHTML = '<span class="hint">No voices yet.</span>';
+  voices.forEach(v => {
+    const el = document.createElement("div");
+    el.className = "voice" + (v.id === selected ? " sel" : "");
+    el.innerHTML = `<div class="grow"><strong></strong><div class="hint">${v.samples} samples · ${v.seconds}s audio</div></div>
+      <button class="sel-btn">${v.id === selected ? "Selected" : "Select"}</button><button class="danger">Delete</button>`;
+    el.querySelector("strong").textContent = v.name;
+    el.querySelector(".sel-btn").onclick = () => { selected = v.id; loadVoices(); };
+    el.querySelector(".danger").onclick = async () => {
+      if (!confirm(`Delete voice “${v.name}” and all its samples?`)) return;
+      await api(`/api/voices/${v.id}`, { method: "DELETE" });
+      loadVoices();
+    };
+    box.appendChild(el);
+  });
+  updateButtons();
+}
+function updateButtons() {
+  const v = voices.find(x => x.id === selected);
+  $("addBtn").disabled = !v;
+  $("speakBtn").disabled = !v;
+  $("speakHint").textContent = v ? `Using “${v.name}”` : "Select a voice first.";
+}
+
+$("temp").oninput = e => $("tempVal").textContent = (+e.target.value).toFixed(2);
+
+$("speakBtn").onclick = async () => {
+  const text = $("text").value.trim();
+  if (!text) return msg("speakMsg", "Type something to say.", true);
+  $("speakBtn").disabled = true;
+  msg("speakMsg", "Generating… (first run loads the model and can take a few minutes)");
+  const t0 = Date.now();
+  try {
+    const j = await api("/api/synthesize", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ voice_id: selected, text, language: $("lang").value, temperature: +$("temp").value }),
+    });
+    const wrap = document.createElement("div"); wrap.className = "card"; wrap.style.marginTop = "12px";
+    wrap.innerHTML = `<div class="hint" style="margin-bottom:6px"></div><audio controls autoplay></audio>
+      <div class="row" style="margin-top:6px"><a download>Download WAV</a></div>`;
+    wrap.querySelector(".hint").textContent = text.length > 120 ? text.slice(0, 120) + "…" : text;
+    wrap.querySelector("audio").src = j.url;
+    wrap.querySelector("a").href = j.url;
+    $("results").prepend(wrap);
+    msg("speakMsg", `Done in ${((Date.now() - t0) / 1000).toFixed(1)}s.`);
+  } catch (e) { msg("speakMsg", e.message, true); }
+  updateButtons();
+};
+
+loadVoices().catch(() => msg("buildMsg", "Can't reach the server — is app.py running?", true));
+</script>
+</body>
+</html>

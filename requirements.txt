@@ -1,0 +1,3 @@
+coqui-tts>=0.24
+flask>=3.0
+soundfile>=0.12
