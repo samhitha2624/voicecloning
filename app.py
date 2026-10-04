@@ -28,6 +28,21 @@ MAX_TEXT = 2000
 app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024
 
+@app.after_request
+def cors(resp):
+    # Lets the GitHub Pages frontend talk to this server.
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Client-Id"
+    resp.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+    return resp
+
+
+@app.before_request
+def preflight():
+    if request.method == "OPTIONS":
+        return "", 204
+
+
 _model = None
 _model_lock = threading.Lock()
 
@@ -126,7 +141,7 @@ def get_latents(d):
 
 @app.get("/")
 def index():
-    return send_from_directory(BASE / "static", "index.html")
+    return send_from_directory(BASE, "index.html")
 
 
 @app.get("/api/voices")

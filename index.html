@@ -66,6 +66,16 @@
   <h1>Voice Clone Studio</h1>
   <p class="sub">Add as many clean recordings of a voice as you can. Every sample is combined into one voice profile, then you can make that voice say anything.</p>
 
+  <section class="card" id="serverCard">
+    <h2>Server</h2>
+    <p class="hint" style="margin:0">Voice cloning runs on a Python server (this page alone can't do it). Leave empty if this page is served by the server itself.</p>
+    <div class="row" style="margin-top:10px">
+      <input id="apiUrl" type="text" placeholder="https://your-server.hf.space" style="flex:1;min-width:200px">
+      <button id="apiSave">Connect</button>
+    </div>
+    <div class="msg" id="serverMsg"></div>
+  </section>
+
   <section class="card">
     <h2>1 · Build a voice</h2>
     <label for="vname">Voice name</label>
@@ -230,6 +240,16 @@ $("recBtn").onclick = async () => {
 
 // ---- API ----
 function msg(id, text, err = false) { const m = $(id); m.textContent = text; m.className = "msg " + (err ? "err" : "ok"); }
+const DEFAULT_API = "";  // set to your deployed server URL, e.g. "https://user-voicecloning.hf.space"
+let API = new URLSearchParams(location.search).get("api");
+try { API = API || localStorage.getItem("vcs-api"); } catch {}
+API = (API ?? DEFAULT_API).replace(/\/+$/, "");
+$("apiUrl").value = API;
+$("apiSave").onclick = () => {
+  API = $("apiUrl").value.trim().replace(/\/+$/, "");
+  try { localStorage.setItem("vcs-api", API); } catch {}
+  connect();
+};
 let CLIENT_ID;
 try { CLIENT_ID = localStorage.getItem("vcs-client"); } catch {}
 if (!CLIENT_ID) {
@@ -238,7 +258,7 @@ if (!CLIENT_ID) {
 }
 async function api(url, opts = {}) {
   opts.headers = { ...(opts.headers || {}), "X-Client-Id": CLIENT_ID };
-  const r = await fetch(url, opts);
+  const r = await fetch(API + url, opts);
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || `Request failed (${r.status})`);
   return j;
@@ -324,15 +344,20 @@ $("speakBtn").onclick = async () => {
     wrap.innerHTML = `<div class="hint" style="margin-bottom:6px"></div><audio controls autoplay></audio>
       <div class="row" style="margin-top:6px"><a download>Download WAV</a></div>`;
     wrap.querySelector(".hint").textContent = text.length > 120 ? text.slice(0, 120) + "…" : text;
-    wrap.querySelector("audio").src = j.url;
-    wrap.querySelector("a").href = j.url;
+    wrap.querySelector("audio").src = API + j.url;
+    wrap.querySelector("a").href = API + j.url;
     $("results").prepend(wrap);
     msg("speakMsg", `Done in ${((Date.now() - t0) / 1000).toFixed(1)}s.`);
   } catch (e) { msg("speakMsg", e.message, true); }
   updateButtons();
 };
 
-loadVoices().catch(() => msg("buildMsg", "Can't reach the server — is app.py running?", true));
+function connect() {
+  loadVoices()
+    .then(() => msg("serverMsg", "Connected" + (API ? " to " + API : "") + "."))
+    .catch(() => msg("serverMsg", "Can't reach the voice server. Enter its URL above, or run app.py locally (http://127.0.0.1:5000).", true));
+}
+connect();
 </script>
 </body>
 </html>
